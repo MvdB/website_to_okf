@@ -1,0 +1,35 @@
+[project]
+name = "website-to-okf"
+version = "0.1.0"
+description = "Scrape a whole website and distill it into an Open Knowledge Format (OKF) bundle."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Michael van den Berg" }]
+license = { text = "Apache-2.0" }
+dependencies = [
+    "crawl4ai>=0.9",
+    "httpx[http2]>=0.27",
+    "trafilatura>=1.12",
+    "openai>=1.40",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "PyYAML>=6.0",
+    "tenacity>=8.2",
+    "python-slugify>=8.0",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+# Playwright is pulled in by crawl4ai; this extra is only for the
+# lightweight trafilatura engine's browser fallback used standalone.
+browser = ["playwright>=1.44"]
+
+[project.scripts]
+website-to-okf = "website_to_okf.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["website_to_okf*"]

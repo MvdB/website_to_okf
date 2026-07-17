@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtualenv
+.venv/
+venv/
+
+# Env / secrets
+.env
+
+# Generated OKF bundles & caches
+/bundle/
+/bundle_*/
+*.okf/
+.cache/

@@ -1,0 +1,70 @@
+# website-to-okf
+
+Scrape a whole website and distill it into an **[Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf)** bundle — a directory of markdown files with YAML frontmatter. Only the raw content and its linkage are kept; design and recurring chrome (headers, footers, nav, banners) are stripped.
+
+## Pipeline
+
+```
+discover  →  fetch + extract  →  distill  →  write OKF
+(sitemap    (engine:            (LLM via     (one concept.md
+ first,      crawl4ai or         OpenAI-       per URL, index.md
+ crawl       trafilatura)        compatible    nav, log.md,
+ fallback)                       API)          manifest.json)
+```
+
+- **Discovery** — sitemap-first (`robots.txt` hints, `/sitemap.xml`, sitemap indexes, nested/gzip sitemaps); same-domain BFS crawl fallback when no sitemap.
+- **Fetch + extract (pluggable engine)**:
+  - **`crawl4ai`** (default) — headless-browser crawling with `fit_markdown` (pruning content filter). Robust on JS-heavy / anti-bot sites.
+  - **`trafilatura`** (`--engine trafilatura`) — lightweight, static-first `httpx` with robots.txt, per-host rate limiting and retries; falls back to a headless **Playwright** browser only when static content looks thin/JS-gated. Faster and lighter for mostly-static sites.
+- **Distill** — an LLM (any OpenAI-compatible endpoint — local Ollama/LM Studio/vLLM or cloud) cleans the markdown and generates `title` / `description` / `tags`. Cached by content hash; degrades to the heuristic extraction on error. Skip entirely with `--no-llm`. This is also what removes any residual nav the extractor leaves behind.
+- **Write** — one OKF concept per URL, mirroring the URL tree; internal links rewritten to bundle-relative (`/a/b.md`); reserved `index.md` / `log.md` generated; `manifest.json` for incremental re-runs.
+
+## Install
+
+```bash
+pip install -e .
+# the default crawl4ai engine needs a browser once:
+playwright install chromium
+```
+
+To run with the lightweight engine and skip the browser entirely, use
+`--engine trafilatura` (add `pip install -e ".[browser]" && playwright install chromium`
+only if you also want its thin-content browser fallback).
+
+## Usage
+
+```bash
+# Extraction only, no model calls (fast smoke test):
+python main.py https://example.com -o ./bundle --no-llm --max-pages 20
+
+# Lightweight static engine (no browser):
+python main.py https://example.com -o ./bundle --engine trafilatura --no-llm
+
+# With a local OpenAI-compatible model:
+python main.py https://example.com -o ./bundle \
+    --base-url http://localhost:11434/v1 --model llama3.1 --api-key not-needed
+
+# With a cloud model (uses OPENAI_API_KEY / OPENAI_BASE_URL from env):
+python main.py https://example.com -o ./bundle --model gpt-4o-mini
+```
+
+Configuration can also come from environment variables (`W2OKF_*`, plus the usual
+`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`) or a local `.env` file.
+
+Run `python main.py --help` for all flags.
+
+## Output bundle
+
+```
+bundle/
+  index.md            # nav index (progressive disclosure)
+  log.md              # run history
+  manifest.json       # url ↔ path ↔ hash
+  home.md             # the site root as a concept
+  blog/
+    index.md
+    my-post.md        # frontmatter: type/title/description/resource/tags/timestamp
+  ...
+```
+
+Drop the bundle next to the OKF repo's `viz.html` to explore the concept graph.
