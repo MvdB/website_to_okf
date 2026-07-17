@@ -103,7 +103,13 @@ def render_concept(c: Concept, path_map: dict[str, str], settings: Settings) -> 
     body = rewrite_links(c.markdown, c.url, path_map, settings).strip()
     # Avoid a duplicate H1 when the extracted body already starts with one.
     heading = "" if body.lstrip().startswith("# ") else f"# {c.title}\n\n"
-    return f"---\n{front}\n---\n\n{heading}{body}\n"
+    # Provenance: append a Citations section pointing at the source page.
+    # Added AFTER link rewriting so this URL stays the real external source.
+    citation = ""
+    if settings.add_citations:
+        label = c.title or c.url
+        citation = f"\n\n# Citations\n\n[1] [{label}]({c.url})"
+    return f"---\n{front}\n---\n\n{heading}{body}{citation}\n"
 
 
 # --------------------------------------------------------------------------
@@ -176,7 +182,15 @@ class OkfWriter:
         self._write_indexes(concept_by_path)
         self._write_log(stats)
         self._write_manifest(manifest_entries, stats)
+        if self.settings.write_viz:
+            self._write_viz(concepts, path_map)
         return path_map
+
+    def _write_viz(self, concepts: list[Concept], path_map: dict[str, str]) -> None:
+        from .viz import render_viz
+
+        html = render_viz(concepts, path_map, self.settings)
+        (self.root / "viz.html").write_text(html, encoding="utf-8")
 
     def _bundle_title(self) -> str:
         if self.settings.bundle_title:

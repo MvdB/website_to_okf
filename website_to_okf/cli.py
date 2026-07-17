@@ -66,6 +66,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--api-key", help="API key (or set OPENAI_API_KEY)")
     p.add_argument("--llm-concurrency", type=int, help="Concurrent LLM calls")
 
+    # OKF output
+    p.add_argument("--no-viz", action="store_true", help="Do not generate viz.html")
+    p.add_argument(
+        "--no-citations", action="store_true", help="Do not append a source Citations section"
+    )
+
     p.add_argument("-v", "--verbose", action="count", default=0, help="-v info, -vv debug")
     return p
 
@@ -116,6 +122,10 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         overrides["openai_api_key"] = args.api_key
     if args.llm_concurrency is not None:
         overrides["llm_concurrency"] = args.llm_concurrency
+    if args.no_viz:
+        overrides["write_viz"] = False
+    if args.no_citations:
+        overrides["add_citations"] = False
 
     return settings.model_copy(update=overrides)
 

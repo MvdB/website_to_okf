@@ -59,12 +59,15 @@ Run `python main.py --help` for all flags.
 bundle/
   index.md            # nav index (progressive disclosure)
   log.md              # run history
-  manifest.json       # url ↔ path ↔ hash
+  manifest.json       # url <-> path <-> hash
+  viz.html            # self-contained concept-graph viewer (no external deps)
   home.md             # the site root as a concept
   blog/
     index.md
     my-post.md        # frontmatter: type/title/description/resource/tags/timestamp
-  ...
+  ...                 # each concept ends with a "# Citations" link to its source URL
 ```
 
-Drop the bundle next to the OKF repo's `viz.html` to explore the concept graph.
+Open `bundle/viz.html` in a browser to explore the concept graph (nodes = pages,
+edges = internal links; click a node for its metadata, backlinks, and source).
+Disable extras with `--no-viz` / `--no-citations`.

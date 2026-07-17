@@ -64,3 +64,5 @@ class Settings(BaseSettings):
     # --- OKF ---
     concept_type: str = "Web Page"
     bundle_title: str = ""  # defaults to the site host if empty
+    add_citations: bool = True  # append a "# Citations" source link to each concept
+    write_viz: bool = True  # emit a self-contained viz.html graph viewer
