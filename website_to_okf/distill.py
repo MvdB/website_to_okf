@@ -129,6 +129,35 @@ class Distiller:
         self.settings = settings
         self.cache_dir = settings.output_dir / ".cache"
         self._client = None
+        # url -> content-hash of its last SUCCESSFUL distillation. Lets a failed
+        # re-distill fall back to the prior distilled result instead of heuristic,
+        # so re-runs are non-destructive (they only ever improve).
+        self._url_map_path = self.cache_dir / "url_to_hash.json"
+        self._url_map: dict[str, str] = {}
+        try:
+            self._url_map = json.loads(self._url_map_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            self._url_map = {}
+
+    def _remember(self, url: str, key: str) -> None:
+        self._url_map[url] = key
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            self._url_map_path.write_text(json.dumps(self._url_map), encoding="utf-8")
+        except OSError:
+            pass
+
+    def _prior_distilled(self, ext: Extracted) -> Concept | None:
+        """Return a previously distilled result for this URL, if one exists."""
+        prior_key = self._url_map.get(ext.url)
+        if not prior_key:
+            return None
+        path = self._cache_path(prior_key)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+        return self._concept_from_data(ext, data)
 
     def _get_client(self):
         if self._client is None:
@@ -178,6 +207,7 @@ class Distiller:
         if cached.exists():
             try:
                 data = json.loads(cached.read_text(encoding="utf-8"))
+                self._remember(ext.url, key)
                 return self._concept_from_data(ext, data)
             except (json.JSONDecodeError, OSError):
                 pass
@@ -185,6 +215,12 @@ class Distiller:
         try:
             data = await self._distill_uncached(ext)
         except Exception as exc:  # noqa: BLE001 - never let one page kill the run
+            # Non-destructive: if this URL was distilled on a prior run, keep that
+            # result rather than downgrading to heuristic on a transient failure.
+            prior = self._prior_distilled(ext)
+            if prior is not None:
+                log.warning("LLM distillation failed for %s: %s (kept prior distilled)", ext.url, exc)
+                return prior
             log.warning("LLM distillation failed for %s: %s (using heuristic)", ext.url, exc)
             return heuristic_concept(ext, self.settings)
 
@@ -193,6 +229,7 @@ class Distiller:
             cached.write_text(json.dumps(data), encoding="utf-8")
         except OSError:
             pass
+        self._remember(ext.url, key)
         return self._concept_from_data(ext, data)
 
     async def _distill_uncached(self, ext: Extracted) -> dict:
