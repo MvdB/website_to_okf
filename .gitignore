@@ -1,20 +1,51 @@
-# Python
+# --- Secrets / local config (never commit) ---
+.env
+.env.*
+!.env.example
+*.local
+secrets.*
+*.key
+*.pem
+
+# --- Python ---
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
 .eggs/
 build/
 dist/
+*.so
+.Python
 
-# Virtualenv
+# --- Virtualenv ---
 .venv/
 venv/
+env/
+ENV/
 
-# Env / secrets
-.env
+# --- Test / type / lint caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
 
-# Generated OKF bundles & caches
+# --- Generated OKF bundles & tool caches ---
 /bundle/
 /bundle_*/
 *.okf/
 .cache/
+
+# --- Playwright / browser artifacts ---
+playwright-report/
+.playwright/
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*~
