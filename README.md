@@ -1,5 +1,8 @@
 # website-to-okf
 
+[![CI](https://github.com/MvdB/website_to_okf/actions/workflows/ci.yml/badge.svg)](https://github.com/MvdB/website_to_okf/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 Scrape a whole website and distill it into an **[Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf)** bundle — a directory of markdown files with YAML frontmatter. Only the raw content and its linkage are kept; design and recurring chrome (headers, footers, nav, banners) are stripped.
 
 ## Pipeline
@@ -69,5 +72,36 @@ bundle/
 ```
 
 Open `bundle/viz.html` in a browser to explore the concept graph (nodes = pages,
-edges = internal links; click a node for its metadata, backlinks, and source).
+edges = content links; click a node for its metadata, backlinks, and source).
 Disable extras with `--no-viz` / `--no-citations`.
+
+## Resumable runs
+
+Every stage is checkpointed under `<bundle>/.cache/` (git-ignored), so an
+interrupted crawl or a restarted model never costs you completed work — just
+re-run the same command:
+
+- **discover** → `discovered.json` (skips sitemap re-fetch)
+- **fetch + extract** → `extracted/<hash>.json`, written per page as it lands
+  (re-fetches only pages not already buffered)
+- **distill** → content-hash cache + `url_to_hash.json` (non-destructive; a
+  transient model failure keeps the prior distilled result)
+
+Pass `--fresh` to ignore the discover/fetch buffers and re-crawl (the distill
+cache stays valid and is still reused).
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+ruff check website_to_okf tests   # lint
+pytest -q                         # fast, offline unit tests
+```
+
+The unit suite is pure and offline (no network, browser, or model), so it runs
+in well under a second. CI runs the same checks on Python 3.10–3.13. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[Apache-2.0](LICENSE) © Michael van den Berg

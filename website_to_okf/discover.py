@@ -12,7 +12,7 @@ from __future__ import annotations
 import gzip
 import logging
 from datetime import datetime
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from xml.etree import ElementTree as ET
 
 from .config import Settings

@@ -23,6 +23,11 @@ dependencies = [
 # Playwright is pulled in by crawl4ai; this extra is only for the
 # lightweight trafilatura engine's browser fallback used standalone.
 browser = ["playwright>=1.44"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.urls]
+Homepage = "https://github.com/MvdB/website_to_okf"
+Repository = "https://github.com/MvdB/website_to_okf"
 
 [project.scripts]
 website-to-okf = "website_to_okf.cli:main"
@@ -33,3 +38,12 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["website_to_okf*"]
+
+[tool.pytest.ini_options]
+# Let the tests import the package straight from the checkout (no install step).
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
