@@ -48,6 +48,7 @@ def test_same_site_ignores_www():
 def test_is_probably_binary():
     assert is_probably_binary("https://x.com/file.pdf")
     assert is_probably_binary("https://x.com/a/b/image.PNG")
+    assert is_probably_binary("https://x.com/route/HistRundweg.gpx")  # oversized GPS asset
     assert not is_probably_binary("https://x.com/page")
     assert not is_probably_binary("https://x.com/page.html")
 

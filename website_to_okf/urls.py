@@ -11,7 +11,7 @@ BINARY_EXTS = {
     ".xlsx", ".ppt", ".pptx", ".png", ".jpg", ".jpeg", ".gif", ".webp",
     ".svg", ".ico", ".mp3", ".mp4", ".avi", ".mov", ".webm", ".wav",
     ".woff", ".woff2", ".ttf", ".eot", ".css", ".js", ".json", ".xml",
-    ".rss", ".atom", ".csv", ".dmg", ".exe", ".apk", ".bin",
+    ".rss", ".atom", ".csv", ".dmg", ".exe", ".apk", ".bin", ".gpx",
 }
 
 
