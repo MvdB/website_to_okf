@@ -8,6 +8,7 @@ import logging
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn
 
+from .buffer import StageBuffer
 from .config import Settings
 from .discover import discover_sitemap
 from .distill import Distiller, heuristic_concept
@@ -31,6 +32,7 @@ class Pipeline:
         self.settings = settings
         self.fetcher = Fetcher(settings)  # used for discovery (sitemap/robots)
         self.engine = build_engine(settings, self.fetcher)
+        self.buffer = StageBuffer(settings.output_dir, fresh=settings.fresh)
 
     async def run(self) -> dict:
         s = self.settings
@@ -53,26 +55,41 @@ class Pipeline:
         s = self.settings
         seed = normalize_url(s.site, strip_query=s.strip_query)
 
-        console.print(f"[bold]Discovering[/] {s.site} ...")
-        sitemap_entries = await discover_sitemap(self.fetcher, s)
-        console.print(f"  sitemap yielded [cyan]{len(sitemap_entries)}[/] URL(s)")
+        # --- Stage 1: discovery (buffered) ---------------------------
+        frontier = self.buffer.load_discovered()
+        if frontier is not None:
+            console.print(
+                f"[bold]Discovery[/] resumed from buffer: [cyan]{len(frontier)}[/] URL(s)"
+            )
+        else:
+            console.print(f"[bold]Discovering[/] {s.site} ...")
+            sitemap_entries = await discover_sitemap(self.fetcher, s)
+            console.print(f"  sitemap yielded [cyan]{len(sitemap_entries)}[/] URL(s)")
+            if sitemap_entries:
+                frontier = sitemap_entries
+            else:
+                frontier = [UrlEntry(url=seed, source="seed", depth=0)]
+            self.buffer.save_discovered(frontier)
 
         if s.follow_links == "always":
             expand = True
         elif s.follow_links == "never":
             expand = False
-        else:  # auto -> crawl only when the sitemap gave us nothing
-            expand = len(sitemap_entries) == 0
-
-        if sitemap_entries:
-            frontier = sitemap_entries
-        else:
-            frontier = [UrlEntry(url=seed, source="seed", depth=0)]
+        else:  # auto -> crawl only when discovery found no sitemap URLs
+            expand = not any(e.source == "sitemap" for e in frontier)
         if expand:
             console.print("  crawl expansion [green]enabled[/]")
 
-        seen: set[str] = {e.url for e in frontier}
-        results: list[Extracted] = []
+        # --- Stage 2: fetch + extract (buffered per page) ------------
+        buffered = self.buffer.load_all_extracted()
+        results: list[Extracted] = list(buffered.values())
+        seen: set[str] = {e.url for e in frontier} | set(buffered)
+        if buffered:
+            console.print(
+                f"  fetch resumed from buffer: [cyan]{len(buffered)}[/] page(s) already extracted"
+            )
+        # Only crawl URLs we have not already extracted.
+        frontier = [e for e in frontier if e.url not in buffered]
 
         with Progress(
             SpinnerColumn(),
@@ -81,7 +98,8 @@ class Pipeline:
             MofNCompleteColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task("Fetching", total=min(len(frontier), s.max_pages))
+            total = min(len(results) + len(frontier), s.max_pages)
+            task = progress.add_task("Fetching", total=total, completed=len(results))
             while frontier and len(results) < s.max_pages:
                 remaining = s.max_pages - len(results)
                 batch = frontier[:remaining]
@@ -96,11 +114,13 @@ class Pipeline:
                 pairs = await asyncio.gather(*(worker(e) for e in batch))
 
                 next_frontier: list[UrlEntry] = []
+                new_urls: list[UrlEntry] = []
                 for entry, ext in pairs:
                     progress.update(task, advance=1)
                     if ext is None:
                         continue
                     stats["fetched"] += 1
+                    self.buffer.save_extracted(ext)  # checkpoint immediately
                     results.append(ext)
                     if expand and entry.depth < s.max_depth:
                         for link in ext.links:
@@ -111,10 +131,13 @@ class Pipeline:
                             if not passes_filters(link, s.include, s.exclude):
                                 continue
                             seen.add(link)
-                            next_frontier.append(
-                                UrlEntry(url=link, source="crawl", depth=entry.depth + 1)
-                            )
+                            new_entry = UrlEntry(url=link, source="crawl", depth=entry.depth + 1)
+                            next_frontier.append(new_entry)
+                            new_urls.append(new_entry)
                 frontier = frontier + next_frontier
+                # Persist newly discovered URLs so an expansion crawl is resumable too.
+                if new_urls:
+                    self._append_discovered(new_urls, seen)
                 progress.update(
                     task, total=min(len(results) + len(frontier), s.max_pages)
                 )
@@ -122,6 +145,13 @@ class Pipeline:
         stats["discovered"] = len(seen)
         console.print(f"  extracted content from [cyan]{len(results)}[/] page(s)")
         return results
+
+    def _append_discovered(self, new_urls: list[UrlEntry], seen: set[str]) -> None:
+        """Grow the discovered buffer during an expansion crawl (best-effort)."""
+        existing = self.buffer.load_discovered() or []
+        known = {e.url for e in existing}
+        merged = existing + [e for e in new_urls if e.url not in known]
+        self.buffer.save_discovered(merged)
 
     async def _fetch_and_extract(self, entry: UrlEntry) -> Extracted | None:
         ext = await self.engine.fetch_extract(entry)

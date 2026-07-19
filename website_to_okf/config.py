@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # --- Target & output ---
     site: str = ""  # seed URL, e.g. https://example.com
     output_dir: Path = Path("./bundle")
+    # Ignore the discover/fetch buffers and re-crawl from scratch. The distill
+    # cache (keyed by content hash) stays valid and is still reused.
+    fresh: bool = False
 
     # --- Discovery / crawl ---
     max_pages: int = 500

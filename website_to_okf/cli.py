@@ -35,6 +35,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--include", action="append", help="Glob URL must match (repeatable)")
     p.add_argument("--exclude", action="append", help="Glob URL must not match (repeatable)")
     p.add_argument("--keep-query", action="store_true", help="Do not strip ?query from URLs")
+    p.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Ignore the discover/fetch buffers and re-crawl (distill cache still reused)",
+    )
 
     # Fetching
     p.add_argument(
@@ -96,6 +101,8 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         overrides["exclude"] = args.exclude
     if args.keep_query:
         overrides["strip_query"] = False
+    if args.fresh:
+        overrides["fresh"] = True
     if args.engine is not None:
         overrides["engine"] = args.engine
     if args.prune_threshold is not None:
