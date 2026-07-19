@@ -43,8 +43,7 @@ class Pipeline:
             extracted = await self._discover_and_extract(stats)
             concepts = await self._distill_all(extracted, stats)
             writer = OkfWriter(s)
-            writer.write(concepts, stats)
-            stats["written"] = len(concepts)
+            writer.write(concepts, stats)  # sets stats["written"]
         finally:
             await self.engine.close()
             await self.fetcher.close()

@@ -28,6 +28,9 @@ log = logging.getLogger("website_to_okf.okf")
 
 _RESERVED_STEMS = {"index", "log"}
 _MD_LINK = re.compile(r"(\]\()([^)\s]+)(\))")
+# Bundle format version. Per SPEC.md this may be declared in the root index.md,
+# the one place frontmatter is permitted in an index.md.
+OKF_VERSION = "0.1"
 
 
 # --------------------------------------------------------------------------
@@ -179,6 +182,8 @@ class OkfWriter:
                 }
             )
 
+        # Set before log/manifest so both record the real written count.
+        stats["written"] = len(concepts)
         self._write_indexes(concept_by_path)
         self._write_log(stats)
         self._write_manifest(manifest_entries, stats)
@@ -203,6 +208,10 @@ class OkfWriter:
         title = self._bundle_title()
         for dpath, info in dirs.items():
             content = _index_for_dir(dpath, info, concept_by_path, title)
+            if dpath == "":
+                # SPEC: the root index.md may declare the bundle's target version;
+                # this is the only frontmatter permitted in an index.md.
+                content = f'---\nokf_version: "{OKF_VERSION}"\n---\n\n{content}'
             index_path = self.root / dpath / "index.md" if dpath else self.root / "index.md"
             index_path.parent.mkdir(parents=True, exist_ok=True)
             index_path.write_text(content, encoding="utf-8")
