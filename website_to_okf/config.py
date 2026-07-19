@@ -23,6 +23,10 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        # Let the aliased OpenAI fields (openai_base_url/api_key/model) also be
+        # set by their field name, so Settings(openai_model=...) and
+        # model_copy(update={...}) work as expected -- not only the OPENAI_* alias.
+        populate_by_name=True,
     )
 
     # --- Target & output ---
