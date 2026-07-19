@@ -8,10 +8,31 @@ transmits nothing (matching the OKF example bundles' ``viz.html``).
 from __future__ import annotations
 
 import json
+import re
 
 from .config import Settings
 from .models import Concept
-from .urls import normalize_url
+from .urls import normalize_url, resolve
+
+_MD_LINK = re.compile(r"\]\(([^)\s]+)\)")
+
+
+def _content_links(markdown: str, source_url: str, settings: Settings):
+    """Yield the normalized targets of links that survive in the distilled body.
+
+    These are the *content* links (nav/footer/menu were already stripped by the
+    distiller), which is the linkage we actually want in the graph -- not the raw
+    same-site link set, which is mostly boilerplate and produces a hairball.
+    """
+    for m in _MD_LINK.finditer(markdown):
+        target = m.group(1)
+        if target.startswith(("mailto:", "tel:", "#")):
+            continue
+        if target.startswith(("http://", "https://")):
+            abs_url = target
+        else:
+            abs_url = resolve(source_url, target)
+        yield normalize_url(abs_url, strip_query=settings.strip_query)
 
 
 def build_graph(concepts: list[Concept], path_map: dict[str, str], settings: Settings) -> dict:
@@ -30,8 +51,8 @@ def build_graph(concepts: list[Concept], path_map: dict[str, str], settings: Set
     seen: set[tuple[str, str]] = set()
     edges = []
     for c in concepts:
-        for link in c.links:
-            target = path_map.get(normalize_url(link, strip_query=settings.strip_query))
+        for norm in _content_links(c.markdown, c.url, settings):
+            target = path_map.get(norm)
             if target and target != c.path and (c.path, target) not in seen:
                 seen.add((c.path, target))
                 edges.append({"source": c.path, "target": target})
@@ -128,6 +149,13 @@ nodes.forEach((n,i) => { const a = (i/nodes.length)*Math.PI*2;
 let view = {x:0, y:0, k:1};
 let selected = null, highlight = new Set(), dragNode = null, panning=false, last={x:0,y:0};
 
+// Simulated-annealing cooling: run the O(n^2) layout hot at first, then idle
+// once it settles so a large graph doesn't peg a CPU core forever. Interactions
+// reheat it briefly.
+let alpha = 1.0;
+const ALPHA_MIN = 0.02, ALPHA_DECAY = 0.994;
+function reheat(a){ alpha = Math.max(alpha, a); }
+
 function tick(){
   const k = 0.02, rep = 1200;
   for (let i=0;i<nodes.length;i++){
@@ -142,7 +170,9 @@ function tick(){
   edges.forEach(e => { const a=byId.get(e.source), b=byId.get(e.target); if(!a||!b) return;
     let dx=b.x-a.x, dy=b.y-a.y; const d=Math.sqrt(dx*dx+dy*dy)||1; const f=(d-90)*k;
     const fx=dx/d*f, fy=dy/d*f; a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy; });
-  nodes.forEach(n => { if(n===dragNode) return; n.x+=n.vx*=0.85; n.y+=n.vy*=0.85; });
+  nodes.forEach(n => { if(n===dragNode) return;
+    n.x += (n.vx *= 0.85) * alpha; n.y += (n.vy *= 0.85) * alpha; });
+  alpha *= ALPHA_DECAY;
 }
 
 function toScreen(n){ return {x:(n.x+view.x)*view.k, y:(n.y+view.y)*view.k}; }
@@ -166,7 +196,7 @@ function draw(){
       ctx.fillText(n.title.slice(0,28), p.x+r+3, p.y+4); }
     ctx.globalAlpha=1; });
 }
-function loop(){ tick(); draw(); requestAnimationFrame(loop); }
+function loop(){ if (alpha > ALPHA_MIN || dragNode) tick(); draw(); requestAnimationFrame(loop); }
 loop();
 
 document.getElementById("stats").textContent =
@@ -178,7 +208,7 @@ function nodeAt(sx, sy){ let best=null, bd=1e9;
     if (d < r*r && d<bd){ bd=d; best=n; } }); return best; }
 
 cv.addEventListener("mousedown", ev => { const n = nodeAt(ev.offsetX, ev.offsetY);
-  if (n){ dragNode=n; select(n); } else { panning=true; } last={x:ev.offsetX,y:ev.offsetY}; });
+  if (n){ dragNode=n; select(n); reheat(0.4); } else { panning=true; } last={x:ev.offsetX,y:ev.offsetY}; });
 window.addEventListener("mousemove", ev => {
   const rect = cv.getBoundingClientRect(); const sx=ev.clientX-rect.left, sy=ev.clientY-rect.top;
   if (dragNode){ dragNode.x = sx/view.k - view.x; dragNode.y = sy/view.k - view.y; dragNode.vx=dragNode.vy=0; }
