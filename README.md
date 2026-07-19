@@ -20,7 +20,7 @@ discover  →  fetch + extract  →  distill  →  write OKF
   - **`crawl4ai`** (default) — headless-browser crawling with `fit_markdown` (pruning content filter). Robust on JS-heavy / anti-bot sites.
   - **`trafilatura`** (`--engine trafilatura`) — lightweight, static-first `httpx` with robots.txt, per-host rate limiting and retries; falls back to a headless **Playwright** browser only when static content looks thin/JS-gated. Faster and lighter for mostly-static sites.
 - **Distill** — an LLM (any OpenAI-compatible endpoint — local Ollama/LM Studio/vLLM or cloud) cleans the markdown and generates `title` / `description` / `tags`. Cached by content hash; degrades to the heuristic extraction on error. Skip entirely with `--no-llm`. This is also what removes any residual nav the extractor leaves behind.
-- **Write** — one OKF concept per URL, mirroring the URL tree; internal links rewritten to bundle-relative (`/a/b.md`); reserved `index.md` / `log.md` generated; `manifest.json` for incremental re-runs.
+- **Write** — one OKF concept per URL, mirroring the URL tree; internal links rewritten to bundle-relative (`/a/b.md`); reserved `index.md` / `log.md` generated (the root `index.md` declares `okf_version`); `manifest.json` records the url ↔ path ↔ hash map. Runs are resumable via per-stage buffers (see below).
 
 ## Install
 
@@ -60,7 +60,7 @@ Run `python main.py --help` for all flags.
 
 ```
 bundle/
-  index.md            # nav index (progressive disclosure)
+  index.md            # nav index (progressive disclosure); root declares okf_version
   log.md              # run history
   manifest.json       # url <-> path <-> hash
   viz.html            # self-contained concept-graph viewer (no external deps)
