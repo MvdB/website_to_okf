@@ -34,6 +34,40 @@ To run with the lightweight engine and skip the browser entirely, use
 `--engine trafilatura` (add `pip install -e ".[browser]" && playwright install chromium`
 only if you also want its thin-content browser fallback).
 
+## Corporate networks & proxies
+
+The pipeline has four network clients that split into two groups:
+
+- **httpx** (discovery, robots/sitemap) and the **OpenAI client** (distillation)
+  honor the standard `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` environment
+  variables.
+- The **crawl4ai** and **Playwright** browser engines do **not** use a proxy —
+  they always connect directly.
+
+Two common cases:
+
+- **Internal target + local model** (e.g. an intranet site and a LAN LLM
+  endpoint): both are reached directly, so just make sure the httpx/OpenAI
+  traffic bypasses the proxy — no proxy is needed for the crawl itself:
+
+  ```bash
+  export NO_PROXY="10.0.0.8,intranet.corp.local,.corp.local,localhost,127.0.0.1"
+  ```
+
+- **Installing through the proxy**: `pip install` and `playwright install`
+  reach the internet, so they need the proxy. Point the env vars at it, or use
+  an internal PyPI / Playwright mirror.
+
+**Kerberos / NTLM (Windows integrated-auth) proxies:** `pip`, `httpx`, and
+Chromium can't perform Windows SSO against a proxy on their own. Run a local
+relay that authenticates upstream with your logged-in credentials —
+[`px`](https://github.com/genotrance/px) (Kerberos/NTLM via SSPI) or `cntlm`
+(NTLM) — and point the proxy env vars at it (`http://127.0.0.1:3128`).
+
+> Note: the tool fetches target pages **anonymously** — it has no credential or
+> cookie injection, so a site behind its own login/SSO won't be scrapeable
+> as-is.
+
 ## Usage
 
 ```bash
